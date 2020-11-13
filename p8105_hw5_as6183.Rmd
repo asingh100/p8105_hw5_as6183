@@ -1,0 +1,44 @@
+---
+title: "p8105_hw5_as6183"
+output: github_document
+---
+# Problem 1:
+
+```{r}
+data = read.csv("C:/Users/13038/Downloads/homicide-data.csv") 
+```
+
+**Description of Raw Data:**
+
+```{r}
+library(tidyverse)
+data = data%>%
+  mutate(city_state = paste(city,state,sep=", "))
+
+tab_1 = data%>%
+  group_by(city_state)%>%
+  summarise("Total Number of Homicides" = n())
+
+tab_2 = data%>%
+  group_by(city_state)%>%
+  filter(disposition != "Closed by arrest")%>%
+  summarise("Number of unsolved homicides" = n())
+
+tab_final = merge(tab_1,tab_2,by = "city_state")%>%
+  dplyr::arrange(desc(`Total Number of Homicides`))
+
+tab_final%>%
+  knitr::kable()
+```
+
+```{r}
+Baltimore_Unsolved = tab_final%>%
+  filter(city_state == "Baltimore, MD")
+
+Baltimore_Unsolved = 
+  prop.test(
+            pull(Baltimore_Unsolved,`Number of unsolved homicides`),
+            pull(Baltimore_Unsolved,`Total Number of Homicides`)
+    )%>%
+  broom::tidy()
+```
