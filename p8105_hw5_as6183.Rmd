@@ -32,13 +32,109 @@ tab_final%>%
 ```
 
 ```{r}
-Baltimore_Unsolved = tab_final%>%
-  filter(city_state == "Baltimore, MD")
+# Baltimore_Unsolved = tab_final%>%
+#   filter(city_state == "Baltimore, MD")
+# 
+# Unsolved_Prop_Bmore = 
+#   prop.test(
+#             pull(Baltimore_Unsolved,`Number of unsolved homicides`),
+#             pull(Baltimore_Unsolved,`Total Number of Homicides`)
+#     )%>%
+#   broom::tidy()%>%
+#   select(estimate,conf.low,conf.high)%>%
+#   mutate(city_state = pull(Baltimore_Unsolved,city_state))
 
-Baltimore_Unsolved = 
-  prop.test(
-            pull(Baltimore_Unsolved,`Number of unsolved homicides`),
-            pull(Baltimore_Unsolved,`Total Number of Homicides`)
-    )%>%
-  broom::tidy()
+# colnames(tab_final) = c("city_state","Total","Unsolved")
+# 
+# 
+# Unsolved_Prop_Final = tab_final%>%
+#   filter(city_state!="Baltimore, MD")%>%
+#   tibble()%>%
+#   group_by(city_state)%>%
+#   nest()%>%
+#   purrr::map2(Unsolved,Total,~prop.test(.x,.y))%>%
+#   unnest()%>%
+#   broom::tidy()%>%
+#   select(estimate,conf.low,conf.high)
+  
+```
+
+# Problem 3:
+```{r}
+library(patchwork)
+
+n = 30
+sd = 5
+mu = 0
+set.seed(234)
+sim_mean_sd = function(n,mu ,sd) {
+  
+  sim_data = tibble(
+    x = rnorm(n, mean = mu, sd = sd),
+  )
+  
+  t_test = t.test(pull(sim_data,x), mu = mu)%>%
+    broom::tidy()%>%
+    dplyr::select(p.value)
+  
+  sim_data %>% 
+    summarize(
+      mu_hat = mean(x),
+      p_val = t_test
+    )
+}
+
+sim_results = 
+  rerun(5000, sim_mean_sd(30, 0, 5)) %>% 
+  bind_rows()
+
+sim_results_diff_mus = 
+  tibble(mu = seq(0,6)) %>% 
+  mutate(
+    output_lists = map(.x = mu, ~rerun(5000, sim_mean_sd(n = 30,mu = .x, sd = 5))),
+    estimate_dfs = map(output_lists, bind_rows)) %>% 
+  select(-output_lists) %>% 
+  unnest(estimate_dfs)
+
+num_rej = sim_results_diff_mus%>%
+  group_by(mu)%>%
+  filter(p_val<0.05)%>%
+  summarize(n_rej = n())
+
+
+df = num_rej%>%
+  mutate(prop_rej = n_rej/5000)
+
+df%>%
+  ggplot(aes(mu,prop_rej))+
+  geom_point()+
+  ggtitle("mu vs proportion of times null was rejected")+
+  xlab("True Value of mu")+
+  ylab("Proportion of Times Null Was Rejected")+
+  theme(title = element_text(size=10))
+
+
+
+plot_1 = sim_results_diff_mus%>%
+  group_by(mu)%>%
+  summarise(avg_mu_hat = mean(mu_hat))%>%
+  ggplot(aes(mu,avg_mu_hat))+
+  geom_point()+
+  ggtitle("mu vs Average estimate of mu")+
+  xlab("True Value of mu")+
+  ylab("Average estimate of mu")+
+  theme(title = element_text(size=10))
+
+plot_2 = sim_results_diff_mus%>%
+  filter(p_val<0.05)%>%
+  group_by(mu)%>%
+  summarise(avg_mu_hat = mean(mu_hat))%>%
+  ggplot(aes(mu,avg_mu_hat))+
+  geom_point()+
+  ggtitle("mu vs Average estimate of mu when H_0 was rejected")+
+  xlab("True Value of mu")+
+  ylab("Average estimate of mu")+
+  theme(title = element_text(size=8))
+
+plot_1 + plot_2
 ```
