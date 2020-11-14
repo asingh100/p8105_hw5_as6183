@@ -59,6 +59,29 @@ tab_final%>%
   
 ```
 
+# Problem 2:
+
+```{r}
+library(plotly)
+
+setwd("./data")
+files = list.files(".")
+data = purrr::map_dfr(files,read.csv)%>%
+  mutate(id = c(paste0("Control"," ",seq(1,10)),paste0("Experiment"," ",seq(1,10))))%>%
+  pivot_longer(week_1:week_8,names_to="week",values_to = "observations")%>%
+  mutate(week = recode(week,week_1 = "1", week_2 = "2", week_3 = "3", week_4 = "4", week_5 = "5", week_6 = "6", week_7 = "7", week_8 = "8"))%>%
+  mutate(week = as.numeric(week))
+
+ggplot(data,aes(x = week, y = observations, color = id)) +
+          geom_line() +
+          theme_bw()+
+          ggtitle("Observation over time for each subject")+
+          theme(legend.title = element_blank(),legend.text = element_text(size=9))
+
+
+
+```
+
 # Problem 3:
 ```{r}
 library(patchwork)
