@@ -32,37 +32,50 @@ tab_final%>%
 ```
 
 ```{r}
-# Baltimore_Unsolved = tab_final%>%
-#   filter(city_state == "Baltimore, MD")
-# 
-# Unsolved_Prop_Bmore = 
-#   prop.test(
-#             pull(Baltimore_Unsolved,`Number of unsolved homicides`),
-#             pull(Baltimore_Unsolved,`Total Number of Homicides`)
-#     )%>%
-#   broom::tidy()%>%
-#   select(estimate,conf.low,conf.high)%>%
-#   mutate(city_state = pull(Baltimore_Unsolved,city_state))
+colnames(tab_final) = c("city_state","Total","Unsolved")
 
-# colnames(tab_final) = c("city_state","Total","Unsolved")
-# 
-# 
-# Unsolved_Prop_Final = tab_final%>%
-#   filter(city_state!="Baltimore, MD")%>%
-#   tibble()%>%
-#   group_by(city_state)%>%
-#   nest()%>%
-#   purrr::map2(Unsolved,Total,~prop.test(.x,.y))%>%
-#   unnest()%>%
-#   broom::tidy()%>%
-#   select(estimate,conf.low,conf.high)
+Baltimore_Unsolved = tab_final%>%
+   filter(city_state == "Baltimore, MD")
+
+ Unsolved_Prop_Bmore =
+   prop.test(
+             pull(Baltimore_Unsolved,`Unsolved`),
+             pull(Baltimore_Unsolved,`Total`)
+     )%>%
+   broom::tidy()%>%
+   select(estimate,conf.low,conf.high)%>%
+   mutate(city_state = pull(Baltimore_Unsolved,city_state))%>%
+   select(city_state,estimate,conf.low,conf.high)
+
+
+
+prop_test_func = function(data) {
+  prop.test(pull(data,Unsolved),pull(data,Total))%>%
+    broom::tidy()%>%
+    select(estimate,conf.low,conf.high)
+}
+ 
+ Unsolved_Prop_Final = tab_final%>%
+   group_by(city_state)%>%
+   mutate(Total = as.double(Total), Unsolved = as.double(Unsolved))%>%
+   nest()%>%
+  mutate(prop_unsolved = map(data, prop_test_func))%>%
+   unnest()%>%
+   arrange(estimate)
   
+ Unsolved_Prop_Final%>%
+   ggplot(aes(x = reorder(city_state,estimate), y = estimate)) +
+   geom_bar(stat="identity")+
+   geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
+   xlab("City")+
+   ylab("Estimate of the Proportion of Unsolved Murders")+
+   ggtitle("Estimate for the Proportion of Unsolved Murders for each City")+
+   theme(axis.text.x = element_text(size=8,angle=90,vjust = 0.5, hjust = 1),plot.title=element_text(size=11))
 ```
 
 # Problem 2:
 
 ```{r}
-library(plotly)
 
 setwd("./data")
 files = list.files(".")
