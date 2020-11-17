@@ -5,7 +5,7 @@ output: github_document
 # Problem 1:
 
 ```{r}
-data = read.csv("C:/Users/13038/Downloads/homicide-data.csv") 
+data = read.csv("./homicide/homicide-data.csv") #reading in homicide data
 ```
 
 **Description of Raw Data:**
@@ -15,40 +15,36 @@ The raw data set contains `r nrow(data)` rows and `r ncol(data)` columns. The da
 ```{r}
 library(tidyverse)
 data = data%>%
-  mutate(city_state = str_c(city,state,sep=", "))
+  mutate(city_state = str_c(city,state,sep=", ")) #adding in city_state variable
 
-tab_1 = data%>%
+total_hom = data%>%
   group_by(city_state)%>%
-  summarise("Total Number of Homicides" = n())
+  summarise("Total Number of Homicides" = n()) #calculating total number of homicides
 
-tab_2 = data%>%
+unsolved_hom = data%>%
   group_by(city_state)%>%
   filter(disposition != "Closed by arrest")%>%
-  summarise("Number of unsolved homicides" = n())
+  summarise("Number of unsolved homicides" = n()) #calculating number of unsolved homicides
 
-tab_final = merge(tab_1,tab_2,by = "city_state")%>%
-  dplyr::arrange(desc(`Total Number of Homicides`))
+tab = merge(total_hom,unsolved_hom,by = "city_state")%>%
+  dplyr::arrange(desc(`Total Number of Homicides`)) #generating table of unsolved and total homicides for each city in data set
 
-tab_final%>%
+tab%>%
   knitr::kable()
 ```
 
 ```{r}
-colnames(tab_final) = c("city_state","Total","Unsolved")
+colnames(tab) = c("city_state","Total","Unsolved") #changing column names to be more reasonable
 
-Baltimore_Unsolved = tab_final%>%
-   filter(city_state == "Baltimore, MD")
-
- Unsolved_Prop_Bmore =
-   prop.test(
-             pull(Baltimore_Unsolved,`Unsolved`),
-             pull(Baltimore_Unsolved,`Total`)
+Unsolved_Prop_Bmore =  prop.test(
+  tab %>% filter(city_state == "Baltimore, MD") %>% pull(Unsolved),
+tab %>% filter(city_state == "Baltimore, MD") %>% pull(Total)
      )%>%
    broom::tidy()%>%
-   select(estimate,conf.low,conf.high)
+   select(estimate,conf.low,conf.high) #performing proportion test on Baltimore's data and saving result
 
  
- Unsolved_Prop_Final = tab_final%>%
+ Unsolved_Prop_Final = tab%>%
   mutate(
       prop_unsolved = map2(.x = Unsolved, .y = Total, ~prop.test(x = .x, n = .y)), 
       tidy = map(.x = prop_unsolved, ~broom::tidy(.x))
@@ -56,16 +52,25 @@ Baltimore_Unsolved = tab_final%>%
   select(-prop_unsolved) %>%
   unnest(tidy) %>%
   select(city_state , estimate, conf.low, conf.high)%>%
-   arrange(estimate)
+   arrange(estimate) #calculating proportion of unsolved homicides for each city in data set using map and map2
   
  Unsolved_Prop_Final%>%
    ggplot(aes(x = reorder(city_state,estimate), y = estimate)) +
-   geom_bar(stat="identity")+
+   geom_bar(stat="identity", fill = "light blue", col = "white")+
    geom_errorbar(aes(ymin = conf.low, ymax = conf.high))+
    xlab("City")+
    ylab("Estimate of the Proportion of Unsolved Murders")+
    ggtitle("Estimate for the Proportion of Unsolved Murders for each City")+
-   theme(axis.text.x = element_text(size=8,angle=90,vjust = 0.5, hjust = 1),plot.title=element_text(size=11))
+   theme(
+     axis.text.x = element_text
+     (
+       size=8,
+       angle=90,
+       vjust = 0.5, 
+       hjust = 1
+       ),
+         plot.title=element_text(size=11)
+         ) #graphing proportion estimates with error bars
 ```
 
 # Problem 2:
@@ -73,21 +78,52 @@ Baltimore_Unsolved = tab_final%>%
 ```{r message=F}
 
 setwd("./data")
-files = list.files(".")
-data = files %>%          
+files = list.files(".") #gathering file names
+participant_data = files %>%        
   map(~ read_csv(.))%>%
-  reduce(rbind) %>%
-  mutate(Control_Exp = c(rep("Control",10),rep("Experimental",10)),id = c(seq("1","10"),seq("1","10")))%>%
-  pivot_longer(week_1:week_8,names_to="week",values_to = "observations")%>%
-  mutate(week = recode(week,week_1 = "1", week_2 = "2", week_3 = "3", week_4 = "4", week_5 = "5", week_6 = "6", week_7 = "7", week_8 = "8"))%>%
-  mutate(week = as.numeric(week), id = factor(id))
+  reduce(rbind)%>%
+cbind(
+  separate
+  (
+  data.frame(files),
+  col=files,
+  sep = "([._])",
+  into =c("arm", "id")
+)
+)%>%
+  pivot_longer(
+    week_1:week_8,
+    names_to="week",
+    values_to = "observations"
+ )%>%
+  mutate(
+    week = recode
+         (
+    week,
+    week_1 = "1",
+    week_2 = "2",
+    week_3 = "3",
+    week_4 = "4", 
+    week_5 = "5",
+    week_6 = "6",
+    week_7 = "7",
+    week_8 = "8"
+           ),
+    arm = recode(
+      arm,
+      con = "Control",
+      exp = "Experimental"
+    )
+    )%>%
+  mutate(week = as.numeric(week),id = factor(id)) #iterating over files and tidying resulting data for plotting
 
-ggplot(data,aes(x = week, y = observations, color = id)) +
+ggplot(participant_data,aes(x = week, y = observations, color = id)) +
           geom_line() +
-          facet_grid(.~Control_Exp)+
+          facet_grid(.~arm)+
           theme_bw()+
           ggtitle("Observation over time for each subject")+
-          theme(legend.text = element_text(size=9))
+          ylab("Observation Value")+
+          theme(legend.text = element_text(size=9)) #creating plot to compare Control and Experimental groups
 
 
 
@@ -101,10 +137,14 @@ From the spaghetti plot shown above we can see that the Control group in general
 ```{r}
 library(patchwork)
 
+#setting up standard variables n and sd as well as initial value for mu
+
 n = 30
 sd = 5
 mu = 0
-set.seed(234)
+
+set.seed(234) #setting seed so we get same results every time we run code
+
 sim_mean_t_test = function(n,mu ,sd) {
   
   sim_data = tibble(
@@ -114,69 +154,84 @@ sim_mean_t_test = function(n,mu ,sd) {
   t.test(sim_data, mu = 0)%>%
     broom::tidy()%>%
     dplyr::select(estimate,p.value)
-}
+} #creating function to run t test and estimate mu
 
 sim_results_mu_equals_0 = 
-  rerun(5000, sim_mean_t_test(30, 0, 5)) %>% 
-  bind_rows()
+  rerun(5000, sim_mean_t_test(n, mu, sd)) %>% 
+  bind_rows() #only running function for mu = 0
 
 sim_results_diff_mus = 
   tibble(mu = seq(0,6)) %>% 
   mutate(
-    output_lists = map(.x = mu, ~rerun(5000, sim_mean_t_test(n = 30,mu = .x, sd = 5))),
+    output_lists = map(.x = mu, ~rerun(5000, sim_mean_t_test(n = n,mu = .x, sd = sd))),
     estimate_dfs = map(output_lists, bind_rows)) %>% 
   select(-output_lists) %>% 
-  unnest(estimate_dfs)
+  unnest(estimate_dfs) #running function for when mu equals 0 to 6
 
 num_rej = sim_results_diff_mus%>%
   group_by(mu)%>%
   filter(p.value<0.05)%>%
-  summarize(n_rej = n())
+  summarize(n_rej = n()) #calculating number of rejected mu values
 
 num_rej%>%
-  ggplot(aes(mu,n_rej/5000,fill = mu),col = "black")+
+  ggplot(
+    aes(
+      mu,
+      n_rej/5000,
+      fill = mu
+      ),
+    col = "black"
+    )+
   geom_bar(stat="identity")+
   ggtitle("Proportion of times null was rejected with different mu values")+
   xlab("True Value of mu")+
   ylab("Proportion of Times Null Was Rejected")+
   geom_text(aes(label=n_rej/5000),position = position_nudge(y=0.04))+
   scale_x_continuous(breaks=seq(0,6))+
-  theme(title = element_text(size=10))
+  theme(title = element_text(size=10)) #plotting proportion of rejections for each mu value
 ```
 
 **Explanation of Graph:**
 
-When the true mu value increases further and further away from 0, the effect size increases as the true mu value is further and further away from what we are supposed to get in the null hypothesis. From the graph we can see that as the effect size increases, the power or the proportion of times the null hypothesis was rejected increases. This make sense because our null hypothesis is that mu = 0 so when mu = 0, the null hypothesis should be rejected the least when compared to higher values of mu. Therefore, from this graph we can conclude there is a strong positive correlation between effect size and power. 
+When the true mu value increases further and further away from 0, the effect size increases as the true mu value is further and further away from what we are supposed to get in the null hypothesis. From the graph we can see that as the effect size increases, the power or the proportion of times the null hypothesis was rejected increases. This make sense because our null hypothesis is that mu = 0 so when mu = 0, the null hypothesis should be rejected the least when compared to higher values of mu. Therefore, from this graph we can conclude that when the effect size increases, the power of the test increases. 
 
 ```{r}
 plot_1 = sim_results_diff_mus%>%
   group_by(mu)%>%
   summarise(avg_mu_hat = mean(estimate))%>%
   ggplot(aes(mu,avg_mu_hat))+
-  geom_point()+
+  geom_point(size = 4)+
   ggtitle("True mu vs Average estimate of mu")+
   ylab("Average estimate of mu")+
-  geom_text(aes(label=round(avg_mu_hat,3)),size=2.5,position = position_nudge(y = 0.2))+
+  geom_text(
+    aes(label=round(avg_mu_hat,2)),
+    size=4,
+    position = position_nudge(y = 0.4)
+    )+
   xlab("True Value of mu")+
-  scale_x_continuous(breaks=seq(0,6))+
-  theme(title = element_text(size=10))
+  scale_x_continuous(breaks=seq(0,6),limits = c(-0.5,6.5))
+  theme(title = element_text(size=10)) #plotting average of all mu estimates for each tru mu value
 
 plot_2 = sim_results_diff_mus%>%
   filter(p.value<0.05)%>%
   group_by(mu)%>%
   summarise(avg_mu_hat = mean(estimate))%>%
   ggplot(aes(mu,avg_mu_hat))+
-  geom_point()+
+  geom_point(size = 4)+
   ggtitle("True mu vs Average estimate of mu for rejected")+
-  ylab("Average estimate of mu")+
-  geom_text(aes(label=round(avg_mu_hat,3)),size=2.5,position = position_nudge(y = 0.2))+
-  scale_x_continuous(breaks=seq(0,6))+
+  ylab("Average estimate of mu when null was rejected")+
+  geom_text(
+    aes(label=round(avg_mu_hat,2)),
+    size=4,
+    position = position_nudge(y = 0.4)
+    )+
+  scale_x_continuous(breaks=seq(0,6),limits=c(-0.5,6.5))+
   xlab("True Value of mu")+
-  theme(title = element_text(size=8))
+  theme(title = element_text(size=8)) #plotting average of mu estimates only when null hypothesis was rejected for each mu value
 
-plot_1 + plot_2
+plot_1 + plot_2 #combining two plots side by side
 ```
 
 **Explanation for graph of sample average of mu when null hypothesis is rejected:**
 
-The sample average of mu is approximately equal to the true value of mu for only the samples where the null hypothesis is rejected for the larger mu values (3,4,5, and 6) as well as when mu = 0. This makes sense because our null hypothesis was mu = 0 thus if our estimate of mu is well above 0 which it should be when the true mu is 3,4,5, or 6 the null hypothesis will be rejected very frequently. Thus, most of the estimates for these true mu values would be included in the "rejection" data which is why the average estimate for these mu's are close to the true mu value as any outliers would not have a very big effect due to the larger sample size. For true mu's of 1 and 2, the average estimate of mu was high compared to the true value of mu. This could be due to the true mu's being closer to 0 which means we reject less samples. This means that outliers in the estimates for these smaller mu values would have more of an impact on the average of the rejection data because the rejection data would be smaller. Furthermore, this trend can also be seen by how the values of the average estimate of mu get closer to the true value of mu as the true value of mu increases. For mu = 0, the number of times the null hypothesis was rejected was much lower when compared to the other mu values which makes sense as our null hypothesis was that mu = 0. The proportion of rejection for mu = 0 was actually 0.051 which is close to our significance level of 0.05 thus indicating that type I errors or rejecting the null hypothesis when it is true could be why our estimated mean mu is so close to 0 and not effected as much by outliers as when the true mu value is 1 or 2. 
+When restricting the data to only samples where the null hypothesis was rejected, the mean estimate of mu is approximately equal to the true value of mu when the true mu value is large (true mu = 4,5, and 6) as well as when the true mu = 0. This makes sense because our null hypothesis was mu = 0 and thus if our estimate of mu is well above 0 which it should be when the true mu is 4,5, or 6, the null hypothesis will be rejected very frequently. Thus, most of the estimates for these true mu values would be included in the "rejection" data so any outliers would not have a very big effect on the mean estimate due to the larger sample size. For true mu's of 1, 2, and 3, the average estimate of mu was high compared to the true value of mu. This could be due to the true mu's being closer to 0 which means we reject less samples. This means that outliers in the estimates for these smaller mu values would have more of an impact on the average of the rejection data because the rejection data would be smaller. This can also been seen from how when the mean estimates of the full data were graphed (left graph), the mean estimates for true mu's of 1, 2, and 3 were very close to the true mu value. Furthermore, the trend of the mean estimates being closer to the true mu value when the true mu value is higher can be seen by how the values of the average estimate of mu get closer to the true value of mu as the true value of mu increases on the right graph. For mu = 0, the number of times the null hypothesis was rejected was much lower when compared to the other mu values which makes sense as our null hypothesis was that mu = 0. The proportion of rejection for mu = 0 was actually 0.051 which is close to our significance level of 0.05 thus indicating that type I errors or rejecting the null hypothesis when it is true could be why our estimated mean mu is so close to 0 and not effected as much by outliers as when the true mu value is 1, 2, or 3. 
