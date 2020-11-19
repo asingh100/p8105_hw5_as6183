@@ -27,7 +27,7 @@ unsolved_hom = data%>%
   summarise("Number of unsolved homicides" = n()) #calculating number of unsolved homicides
 
 tab = merge(total_hom,unsolved_hom,by = "city_state")%>%
-  dplyr::arrange(desc(`Total Number of Homicides`)) #generating table of unsolved and total homicides for each city in data set
+  dplyr::arrange(`Total Number of Homicides`) #generating table of unsolved and total homicides for each city in data set
 
 tab%>%
   knitr::kable()
@@ -76,11 +76,12 @@ tab %>% filter(city_state == "Baltimore, MD") %>% pull(Total)
 # Problem 2:
 
 ```{r message=F}
+setwd("./data") #setting working directory to data folder for convenience
 
-setwd("./data")
 files = list.files(".") #gathering file names
+
 participant_data = files %>%        
-  map(~ read_csv(.))%>%
+  map(~ read_csv(.x))%>%
   reduce(rbind)%>%
 cbind(
   separate
